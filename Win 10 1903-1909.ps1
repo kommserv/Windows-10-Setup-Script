@@ -378,9 +378,8 @@ New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\
 # Открывать проводник для: "Этот компьютер"
 New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name LaunchTo -PropertyType DWord -Value 1 -Force
 
-# Do not show all folders in the navigation pane
-# Не отображать все папки в области навигации
-New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name NavPaneShowAllFolders -PropertyType DWord -Value 0 -Force
+# Do show all folders in the navigation pane
+New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name NavPaneShowAllFolders -PropertyType DWord -Value 1 -Force
 
 # Do not show Cortana button on taskbar
 # Не показывать кнопку Кортаны на панели задач
@@ -402,9 +401,8 @@ if (-not (Test-Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Adv
 }
 New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\People -Name PeopleBand -PropertyType DWord -Value 0 -Force
 
-# Show seconds on taskbar clock
-# Отображать секунды в системных часах на панели задач
-New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowSecondsInSystemClock -PropertyType DWord -Value 1 -Force
+# Do not show seconds on taskbar clock
+New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced -Name ShowSecondsInSystemClock -PropertyType DWord -Value 0 -Force
 
 # Do not show when snapping a window, what can be attached next to it
 # Не показывать при прикреплении окна, что можно прикрепить рядом с ним
@@ -425,17 +423,6 @@ if (-not (Test-Path -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explor
 	New-Item -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Ribbon -Force
 }
 New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Ribbon -Name MinimizedStateTabletModeOff -PropertyType DWord -Value 0 -Force
-
-<#
-Display recycle bin files delete confirmation
-Function [WinAPI.UpdateExplorer]::PostMessage() call required at the end
-
-Запрашивать подтверждение на удаление файлов в корзину
-В конце необходим вызов функции [WinAPI.UpdateExplorer]::PostMessage()
-#>
-$ShellState = Get-ItemPropertyValue -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer -Name ShellState
-$ShellState[4] = 51
-New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer -Name ShellState -PropertyType Binary -Value $ShellState -Force
 
 # Hide 3D Objects folder from "This PC" and from Quick access
 # Скрыть папку "Объемные объекты" из "Этот компьютер" и из панели быстрого доступа
@@ -797,74 +784,6 @@ if ((Get-CimInstance -ClassName Win32_ComputerSystem).PCSystemType -ne 2)
 # Отключить доступ к сведениям о расположении для этого устройства
 New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location -Name Value -PropertyType String -Value Deny -Force
 
-# Change %TEMP% environment variable path to the %SystemDrive%\Temp
-# Изменить путь переменной среды для %TEMP% на %SystemDrive%\Temp
-# See pinned issues: https://github.com/farag2/Windows-10-Setup-Script/issues
-$Title = ""
-if ($RU)
-{
-	$Message = "Чтобы изменить путь переменной среды для %TEMP% на %SystemDrive%\Temp, введите необходимую букву"
-	Write-Warning -Message "`nПеред выполнением закройте все работающие программы"
-	$Options = "&Изменить", "&Пропустить"
-}
-else
-{
-	$Message = "To change %TEMP% environment variable path to the %SystemDrive%\Temp enter the required letter"
-	Write-Warning -Message "`nClose all running programs before proceeding"
-	$Options = "&Change", "&Skip"
-}
-$DefaultChoice = 1
-$Result = $Host.UI.PromptForChoice($Title, $Message, $Options, $DefaultChoice)
-
-switch ($Result)
-{
-	"0"
-	{
-		if (-not (Test-Path -Path $env:SystemDrive\Temp))
-		{
-			New-Item -Path $env:SystemDrive\Temp -ItemType Directory -Force
-		}
-
-		[Environment]::SetEnvironmentVariable("TMP", "$env:SystemDrive\Temp", "User")
-		[Environment]::SetEnvironmentVariable("TMP", "$env:SystemDrive\Temp", "Machine")
-		[Environment]::SetEnvironmentVariable("TMP", "$env:SystemDrive\Temp", "Process")
-		New-ItemProperty -Path HKCU:\Environment -Name TMP -PropertyType ExpandString -Value %SystemDrive%\Temp -Force
-
-		[Environment]::SetEnvironmentVariable("TEMP", "$env:SystemDrive\Temp", "User")
-		[Environment]::SetEnvironmentVariable("TEMP", "$env:SystemDrive\Temp", "Machine")
-		[Environment]::SetEnvironmentVariable("TEMP", "$env:SystemDrive\Temp", "Process")
-		New-ItemProperty -Path HKCU:\Environment -Name TEMP -PropertyType ExpandString -Value %SystemDrive%\Temp -Force
-
-		New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name TMP -PropertyType ExpandString -Value %SystemDrive%\Temp -Force
-		New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Name TEMP -PropertyType ExpandString -Value %SystemDrive%\Temp -Force
-
-		# Spooler restart
-		# Перезапуск Диспетчер печати
-		Restart-Service -Name Spooler -Force
-
-		Stop-Process -Name OneDrive -Force -ErrorAction Ignore
-		Stop-Process -Name FileCoAuth -Force -ErrorAction Ignore
-
-		Remove-Item -Path $env:SystemRoot\Temp -Recurse -Force -ErrorAction Ignore
-		Remove-Item -Path $env:LOCALAPPDATA\Temp -Recurse -Force -ErrorAction Ignore
-
-		# Create a symbolic link to the %SystemDrive%\Temp folder
-		# Создать символическую ссылку к папке %SystemDrive%\Temp
-		New-Item -Path $env:LOCALAPPDATA\Temp -ItemType SymbolicLink -Value $env:SystemDrive\Temp -Force
-	}
-	"1"
-	{
-		if ($RU)
-		{
-			Write-Verbose -Message "Пропущено" -Verbose
-		}
-		else
-		{
-			Write-Verbose -Message "Skipped" -Verbose
-		}
-	}
-}
-
 # Turn on Win32 long paths
 # Включить длинные пути Win32
 New-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled -PropertyType DWord -Value 1 -Force
@@ -909,32 +828,25 @@ if (-not (Test-Path -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\CurrentV
 New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name SyncForegroundPolicy -PropertyType DWord -Value 1 -Force
 
 # Do not let Windows manage default printer
-# Не разрешать Windows управлять принтером, используемым по умолчанию
+# https://www.tenforums.com/tutorials/26138-turn-off-let-windows-10-manage-default-printer.html
 New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Windows" -Name LegacyDefaultPrinterMode -PropertyType DWord -Value 1 -Force
 
 # Turn off Windows features
-# Отключить компоненты Windows
 $WindowsOptionalFeatures = @(
 	# Windows Fax and Scan
-	# Факсы и сканирование
 	"FaxServicesClientPackage"
 	# Legacy Components
-	# Компоненты прежних версий
 	"LegacyComponents"
 	# Media Features
-	# Компоненты работы с мультимедиа
 	"MediaPlayback"
 	# PowerShell 2.0
 	"MicrosoftWindowsPowerShellV2"
 	"MicrosoftWindowsPowershellV2Root"
 	# Microsoft XPS Document Writer
-	# Средство записи XPS-документов (Microsoft)
 	"Printing-XPSServices-Features"
 	# Microsoft Print to PDF
-	# Печать в PDF (Майкрософт)
 	"Printing-PrintToPDFServices-Features"
 	# Work Folders Client
-	# Клиент рабочих папок
 	"WorkFolders-Client"
 )
 Disable-WindowsOptionalFeature -Online -FeatureName $WindowsOptionalFeatures -NoRestart
@@ -1273,171 +1185,6 @@ if (Get-WindowsEdition -Online | Where-Object -FilterScript {$_.Edition -eq "Pro
 	}
 }
 
-# Change location of the user folders
-# Изменить расположение пользовательских папок
-function UserShellFolder
-{
-<#
-.SYNOPSIS
-	Change location of the each user folders using SHSetKnownFolderPath function
-.EXAMPLE
-	UserShellFolder -UserFolder Desktop -FolderPath "C:\Desktop"
-.NOTES
-	User files or folders won't me moved to the new location
-#>
-	[CmdletBinding()]
-	param
-	(
-		[Parameter(Mandatory = $true)]
-		[ValidateSet("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")]
-		[string]
-		$UserFolder,
-
-		[Parameter(Mandatory = $true)]
-		[string]
-		$FolderPath
-	)
-
-	function KnownFolderPath
-	{
-	<#
-	.SYNOPSIS
-		Redirect user folders to a new location
-	.EXAMPLE
-		KnownFolderPath -KnownFolder Desktop -Path "C:\Desktop"
-	.NOTES
-		User files or folders won't me moved to the new location
-	#>
-		[CmdletBinding()]
-		param
-		(
-			[Parameter(Mandatory = $true)]
-			[ValidateSet("Desktop", "Documents", "Downloads", "Music", "Pictures", "Videos")]
-			[string]
-			$KnownFolder,
-
-			[Parameter(Mandatory = $true)]
-			[string]
-			$Path
-		)
-
-		$KnownFolders = @{
-			"Desktop"	= @("B4BFCC3A-DB2C-424C-B029-7FE99A87C641");
-			"Documents"	= @("FDD39AD0-238F-46AF-ADB4-6C85480369C7", "f42ee2d3-909f-4907-8871-4c22fc0bf756");
-			"Downloads"	= @("374DE290-123F-4565-9164-39C4925E467B", "7d83ee9b-2244-4e70-b1f5-5393042af1e4");
-			"Music"		= @("4BD8D571-6D19-48D3-BE97-422220080E43", "a0c69a99-21c8-4671-8703-7934162fcf1d");
-			"Pictures"	= @("33E28130-4E1E-4676-835A-98395C3BC3BB", "0ddd015d-b06c-45d5-8c4c-f59713854639");
-			"Videos"	= @("18989B1D-99B5-455B-841C-AB7C74E4DDFC", "35286a68-3c57-41a1-bbb1-0eae73d76c95");
-		}
-
-		$Signature = @{
-			Namespace = "WinAPI"
-			Name = "KnownFolders"
-			Language = "CSharp"
-			MemberDefinition = @"
-[DllImport("shell32.dll")]
-public extern static int SHSetKnownFolderPath(ref Guid folderId, uint flags, IntPtr token, [MarshalAs(UnmanagedType.LPWStr)] string path);
-"@
-		}
-		if (-not ("WinAPI.KnownFolders" -as [type]))
-		{
-			Add-Type @Signature
-		}
-
-		foreach ($guid in $KnownFolders[$KnownFolder])
-		{
-			[WinAPI.KnownFolders]::SHSetKnownFolderPath([ref]$guid, 0, 0, $Path)
-		}
-		(Get-Item -Path $Path -Force).Attributes = "ReadOnly"
-	}
-
-	$UserShellFoldersRegName = @{
-		"Desktop"	=	"Desktop"
-		"Documents"	=	"Personal"
-		"Downloads"	=	"{374DE290-123F-4565-9164-39C4925E467B}"
-		"Music"		=	"My Music"
-		"Pictures"	=	"My Pictures"
-		"Videos"	=	"My Video"
-	}
-
-	$UserShellFoldersGUID = @{
-		"Desktop"	=	"{754AC886-DF64-4CBA-86B5-F7FBF4FBCEF5}"
-		"Documents"	=	"{F42EE2D3-909F-4907-8871-4C22FC0BF756}"
-		"Downloads"	=	"{7D83EE9B-2244-4E70-B1F5-5393042AF1E4}"
-		"Music"		=	"{A0C69A99-21C8-4671-8703-7934162FCF1D}"
-		"Pictures"	=	"{0DDD015D-B06C-45D5-8C4C-F59713854639}"
-		"Videos"	=	"{35286A68-3C57-41A1-BBB1-0EAE73D76C95}"
-	}
-
-	# Hidden desktop.ini for each type of user folders
-	# Скрытый desktop.ini для каждого типа пользовательских папок
-	$DesktopINI = @{
-		"Desktop"	=	"",
-						"[.ShellClassInfo]",
-						"LocalizedResourceName=@%SystemRoot%\system32\shell32.dll,-21769",
-						"IconResource=%SystemRoot%\system32\imageres.dll,-183"
-		"Documents"	=	"",
-						"[.ShellClassInfo]",
-						"LocalizedResourceName=@%SystemRoot%\system32\shell32.dll,-21770",
-						"IconResource=%SystemRoot%\system32\imageres.dll,-112",
-						"IconFile=%SystemRoot%\system32\shell32.dll",
-						"IconIndex=-235"
-		"Downloads"	=	"",
-						"[.ShellClassInfo]","LocalizedResourceName=@%SystemRoot%\system32\shell32.dll,-21798",
-						"IconResource=%SystemRoot%\system32\imageres.dll,-184"
-		"Music"		=	"",
-						"[.ShellClassInfo]","LocalizedResourceName=@%SystemRoot%\system32\shell32.dll,-21790",
-						"InfoTip=@%SystemRoot%\system32\shell32.dll,-12689",
-						"IconResource=%SystemRoot%\system32\imageres.dll,-108",
-						"IconFile=%SystemRoot%\system32\shell32.dll","IconIndex=-237"
-		"Pictures"	=	"",
-						"[.ShellClassInfo]",
-						"LocalizedResourceName=@%SystemRoot%\system32\shell32.dll,-21779",
-						"InfoTip=@%SystemRoot%\system32\shell32.dll,-12688",
-						"IconResource=%SystemRoot%\system32\imageres.dll,-113",
-						"IconFile=%SystemRoot%\system32\shell32.dll",
-						"IconIndex=-236"
-		"Videos"	=	"",
-						"[.ShellClassInfo]",
-						"LocalizedResourceName=@%SystemRoot%\system32\shell32.dll,-21791",
-						"InfoTip=@%SystemRoot%\system32\shell32.dll,-12690",
-						"IconResource=%SystemRoot%\system32\imageres.dll,-189",
-						"IconFile=%SystemRoot%\system32\shell32.dll","IconIndex=-238"
-	}
-
-	# Determining the current user folder path
-	# Определяем текущее значение пути пользовательской папки
-	$UserShellFolderRegValue = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Name $UserShellFoldersRegName[$UserFolder]
-	if ($UserShellFolderRegValue -ne $FolderPath)
-	{
-		if ((Get-ChildItem -Path $UserShellFolderRegValue | Measure-Object).Count -ne 0)
-		{
-			if ($RU)
-			{
-				Write-Error -Message "В папке $UserShellFolderRegValue осталась файлы. Переместите их вручную в новое расположение" -ErrorAction SilentlyContinue
-			}
-			else
-			{
-				Write-Error -Message "Some files left in the $UserShellFolderRegValue folder. Move them manually to a new location" -ErrorAction SilentlyContinue
-			}
-		}
-
-		# Creating a new folder if there is no one
-		# Создаем новую папку, если таковая отсутствует
-		if (-not (Test-Path -Path $FolderPath))
-		{
-			New-Item -Path $FolderPath -ItemType Directory -Force
-		}
-
-		KnownFolderPath -KnownFolder $UserFolder -Path $FolderPath
-		New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Name $UserShellFoldersGUID[$UserFolder] -PropertyType ExpandString -Value $FolderPath -Force
-
-		Set-Content -Path "$FolderPath\desktop.ini" -Value $DesktopINI[$UserFolder] -Encoding Unicode -Force
-		(Get-Item -Path "$FolderPath\desktop.ini" -Force).Attributes = "Hidden", "System", "Archive"
-		(Get-Item -Path "$FolderPath\desktop.ini" -Force).Refresh()
-	}
-}
-
 <#
 .SYNOPSIS
 	The "Show menu" function using PowerShell with the up/down arrow keys and enter key to make a selection
@@ -1535,304 +1282,6 @@ else
 	$Default = 0
 }
 
-# Desktop
-# Рабочий стол
-$Title = ""
-if ($RU)
-{
-	$Message = "Чтобы изменить местоположение папки `"Рабочий стол`", введите необходимую букву"
-	Write-Warning -Message "`nФайлы не будут перенесены"
-	$Options = "&Изменить", "&Пропустить"
-}
-else
-{
-	$Message = "To change the location of the Desktop folder enter the required letter"
-	Write-Warning -Message "`nFiles will not be moved"
-	$Options = "&Change", "&Skip"
-}
-$DefaultChoice = 1
-$Result = $Host.UI.PromptForChoice($Title, $Message, $Options, $DefaultChoice)
-
-switch ($Result)
-{
-	"0"
-	{
-		if ($RU)
-		{
-			$Title = "`nВыберите диск, в корне которого будет создана папка для `"Рабочий стол`""
-		}
-		else
-		{
-			$Title = "`nSelect the drive within the root of which the `"Desktop`" folder will be created"
-		}
-		$SelectedDrive = ShowMenu -Title $Title -Menu $DriveLetters -Default $Default
-		UserShellFolder -UserFolder Desktop -FolderPath "${SelectedDrive}:\Desktop"
-	}
-	"1"
-	{
-		if ($RU)
-		{
-			Write-Verbose -Message "Пропущено" -Verbose
-		}
-		else
-		{
-			Write-Verbose -Message "Skipped" -Verbose
-		}
-	}
-}
-
-# Documents
-# Документы
-$Title = ""
-if ($RU)
-{
-	$Message = "Чтобы изменить местоположение папки `"Документы`", введите необходимую букву"
-	Write-Warning -Message "`nФайлы не будут перенесены"
-	$Options = "&Изменить", "&Пропустить"
-}
-else
-{
-	$Message = "To change the location of the Documents folder enter the required letter"
-	Write-Warning -Message "`nFiles will not be moved"
-	$Options = "&Change", "&Skip"
-}
-$DefaultChoice = 1
-$Result = $Host.UI.PromptForChoice($Title, $Message, $Options, $DefaultChoice)
-
-switch ($Result)
-{
-	"0"
-	{
-		if ($RU)
-		{
-			$Title = "`nВыберите диск, в корне которого будет создана папка для `"Документы`""
-		}
-		else
-		{
-			$Title = "`nSelect the drive within the root of which the `"Documents`" folder will be created"
-		}
-		$SelectedDrive = ShowMenu -Title $Title -Menu $DriveLetters -Default $Default
-		UserShellFolder -UserFolder Documents -FolderPath "${SelectedDrive}:\Documents"
-	}
-	"1"
-	{
-		if ($RU)
-		{
-			Write-Verbose -Message "Пропущено" -Verbose
-		}
-		else
-		{
-			Write-Verbose -Message "Skipped" -Verbose
-		}
-	}
-}
-
-# Downloads
-# Загрузки
-$Title = ""
-if ($RU)
-{
-	$Message = "Чтобы изменить местоположение папки `"Загрузки`", введите необходимую букву"
-	Write-Warning -Message "`nФайлы не будут перенесены"
-	$Options = "&Изменить", "&Пропустить"
-}
-else
-{
-	$Message = "To change the location of the Downloads folder enter the required letter"
-	Write-Warning -Message "`nFiles will not be moved"
-	$Options = "&Change", "&Skip"
-}
-$DefaultChoice = 1
-$Result = $Host.UI.PromptForChoice($Title, $Message, $Options, $DefaultChoice)
-
-switch ($Result)
-{
-	"0"
-	{
-		if ($RU)
-		{
-			$Title = "`nВыберите диск, в корне которого будет создана папка для `"Загрузки`""
-		}
-		else
-		{
-			$Title = "`nSelect the drive within the root of which the `"Downloads`" folder will be created"
-		}
-		$SelectedDrive = ShowMenu -Title $Title -Menu $DriveLetters -Default $Default
-		UserShellFolder -UserFolder Downloads -FolderPath "${SelectedDrive}:\Downloads"
-	}
-	"1"
-	{
-		if ($RU)
-		{
-			Write-Verbose -Message "Пропущено" -Verbose
-		}
-		else
-		{
-			Write-Verbose -Message "Skipped" -Verbose
-		}
-	}
-}
-
-# Music
-# Музыка
-$Title = ""
-if ($RU)
-{
-	$Message = "Чтобы изменить местоположение папки `"Музыка`", введите необходимую букву"
-	Write-Warning -Message "`nФайлы не будут перенесены"
-	$Options = "&Изменить", "&Пропустить"
-}
-else
-{
-	$Message = "To change the location of the Music folder enter the required letter"
-	Write-Warning -Message "`nFiles will not be moved"
-	$Options = "&Change", "&Skip"
-}
-$DefaultChoice = 1
-$Result = $Host.UI.PromptForChoice($Title, $Message, $Options, $DefaultChoice)
-
-switch ($Result)
-{
-	"0"
-	{
-		if ($RU)
-		{
-			$Title = "`nВыберите диск, в корне которого будет создана папка для `"Музыка`""
-		}
-		else
-		{
-			$Title = "`nSelect the drive within the root of which the `"Music`" folder will be created"
-		}
-		$SelectedDrive = ShowMenu -Title $Title -Menu $DriveLetters -Default $Default
-		UserShellFolder -UserFolder Music -FolderPath "${SelectedDrive}:\Music"
-	}
-	"1"
-	{
-		if ($RU)
-		{
-			Write-Verbose -Message "Пропущено" -Verbose
-		}
-		else
-		{
-			Write-Verbose -Message "Skipped" -Verbose
-		}
-	}
-}
-
-
-# Pictures
-# Изображения
-$Title = ""
-if ($RU)
-{
-	$Message = "Чтобы изменить местоположение папки `"Изображения`", введите необходимую букву"
-	Write-Warning -Message "`nФайлы не будут перенесены"
-	$Options = "&Изменить", "&Пропустить"
-}
-else
-{
-	$Message = "To change the location of the Pictures folder enter the required letter"
-	Write-Warning -Message "`nFiles will not be moved"
-	$Options = "&Change", "&Skip"
-}
-$DefaultChoice = 1
-$Result = $Host.UI.PromptForChoice($Title, $Message, $Options, $DefaultChoice)
-
-switch ($Result)
-{
-	"0"
-	{
-		if ($RU)
-		{
-			$Title = "`nВыберите диск, в корне которого будет создана папка для `"Изображения`""
-		}
-		else
-		{
-			$Title = "`nSelect the drive within the root of which the `"Pictures`" folder will be created"
-		}
-		$SelectedDrive = ShowMenu -Title $Title -Menu $DriveLetters -Default $Default
-		UserShellFolder -UserFolder Pictures -FolderPath "${SelectedDrive}:\Pictures"
-	}
-	"1"
-	{
-		if ($RU)
-		{
-			Write-Verbose -Message "Пропущено" -Verbose
-		}
-		else
-		{
-			Write-Verbose -Message "Skipped" -Verbose
-		}
-	}
-}
-
-# Videos
-# Видео
-$Title = ""
-if ($RU)
-{
-	$Message = "Чтобы изменить местоположение папки `"Видео`", введите необходимую букву"
-	Write-Warning -Message "`nФайлы не будут перенесены"
-	$Options = "&Изменить", "&Пропустить"
-}
-else
-{
-	$Message = "To change the location of the Videos folder enter the required letter"
-	Write-Warning -Message "`nFiles will not be moved"
-	$Options = "&Change", "&Skip"
-}
-$DefaultChoice = 1
-$Result = $Host.UI.PromptForChoice($Title, $Message, $Options, $DefaultChoice)
-
-switch ($Result)
-{
-	"0"
-	{
-		if ($RU)
-		{
-			$Title = "`nВыберите диск, в корне которого будет создана папка для `"Видео`""
-		}
-		else
-		{
-			$Title = "`nSelect the drive within the root of which the `"Videos`" folder will be created"
-		}
-		$SelectedDrive = ShowMenu -Title $Title -Menu $DriveLetters -Default $Default
-		UserShellFolder -UserFolder Videos -FolderPath "${SelectedDrive}:\Videos"
-	}
-	"1"
-	{
-		if ($RU)
-		{
-			Write-Verbose -Message "Пропущено" -Verbose
-		}
-		else
-		{
-			Write-Verbose -Message "Skipped" -Verbose
-		}
-	}
-}
-
-# Save screenshots by pressing Win+PrtScr to the Desktop
-# Сохранять скриншоты по нажатию Win+PrtScr на рабочем столе
-$DesktopFolder = Get-ItemPropertyValue -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Name Desktop
-Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Name "{B7BEDE81-DF94-4682-A7D8-57A52620B86F}" -Type ExpandString -Value $DesktopFolder -Force
-# Save all opened folders in order to restore them after File Explorer restart
-# Сохранить все открытые папки, чтобы восстановить их после перезапуска проводника
-Clear-Variable -Name OpenedFolders -Force -ErrorAction Ignore
-$OpenedFolders = {(New-Object -ComObject Shell.Application).Windows() | ForEach-Object -Process {$_.Document.Folder.Self.Path}}.Invoke()
-# In order for the changes to take effect the File Explorer process has to be restarted
-# Чтобы изменения вступили в силу, необходимо перезапустить процесс проводника
-Stop-Process -Name explorer -Force
-# Restore closed folders
-# Восстановить закрытые папки
-foreach ($OpenedFolder in $OpenedFolders)
-{
-	if (Test-Path -Path $OpenedFolder)
-	{
-		Invoke-Item -Path $OpenedFolder
-	}
-}
-
 # Turn on automatic recommended troubleshooting and tell when problems get fixed
 # Автоматически запускать средства устранения неполадок, а затем сообщать об устранении проблем
 New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection -Name AllowTelemetry -PropertyType DWord -Value 3 -Force
@@ -1855,18 +1304,6 @@ New-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\ReserveMa
 # Включить автоматическое создание копии реестра в папку %SystemRoot%\System32\config\RegBack
 New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Configuration Manager" -Name EnablePeriodicBackup -PropertyType DWord -Value 1 -Force
 
-# Turn off Help page opening by F1 key
-# Отключить открытие справки по нажатию F1
-if (-not (Test-Path -Path "HKCU:\Software\Classes\Typelib\{8cec5860-07a1-11d9-b15e-000d56bfe6ee}\1.0\0\win64"))
-{
-	New-Item -Path "HKCU:\Software\Classes\Typelib\{8cec5860-07a1-11d9-b15e-000d56bfe6ee}\1.0\0\win64" -Force
-}
-New-ItemProperty -Path "HKCU:\Software\Classes\Typelib\{8cec5860-07a1-11d9-b15e-000d56bfe6ee}\1.0\0\win64" -Name "(Default)" -PropertyType String -Value "" -Force
-
-# Turn on Num Lock at startup
-# Включить Num Lock при загрузке
-New-ItemProperty -Path "Registry::HKEY_USERS\.DEFAULT\Control Panel\Keyboard" -Name InitialKeyboardIndicators -PropertyType String -Value 2147483650 -Force
-
 # Turn off sticky Shift key after pressing 5 times
 # Отключить залипание клавиши Shift после 5 нажатий
 New-ItemProperty -Path "HKCU:\Control Panel\Accessibility\StickyKeys" -Name Flags -PropertyType String -Value 506 -Force
@@ -1879,14 +1316,6 @@ New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\
 # Отключить удаление кэша миниатюр
 New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Thumbnail Cache" -Name Autorun -PropertyType DWord -Value 0 -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Thumbnail Cache" -Name Autorun -PropertyType DWord -Value 0 -Force
-
-# Turn on network discovery and file and printers sharing if device is not domain-joined
-# Включить сетевое обнаружение и общий доступ к файлам и принтерам, если устройство не присоединенно к домену
-if ((Get-CimInstance -ClassName CIM_ComputerSystem).PartOfDomain -eq $false)
-{
-	Get-NetFirewallRule -Group "@FirewallAPI.dll,-32752", "@FirewallAPI.dll,-28502" | Set-NetFirewallRule -Profile Private -Enabled True
-	Set-NetConnectionProfile -NetworkCategory Private
-}
 
 # Automatically adjust active hours for me based on daily usage
 # Автоматически изменять период активности для этого устройства на основе действий
@@ -1905,12 +1334,6 @@ New-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer -Name 
 # Do not show app suggestions in Start menu
 # Не показывать рекомендации в меню "Пуск"
 New-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager -Name SubscribedContent-338388Enabled -PropertyType DWord -Value 0 -Force
-
-# Run the Command Prompt shortcut from the Start menu as Administrator
-# Запускать ярлык командной строки в меню "Пуск" от имени Администратора
-[byte[]]$bytes = Get-Content -Path "$env:APPDATA\Microsoft\Windows\Start menu\Programs\System Tools\Command Prompt.lnk" -Encoding Byte -Raw
-$bytes[0x15] = $bytes[0x15] -bor 0x20
-Set-Content -Path "$env:APPDATA\Microsoft\Windows\Start menu\Programs\System Tools\Command Prompt.lnk" -Value $bytes -Encoding Byte -Force
 
 # Show the "File Explorer" and "Settings" folders on Start
 # Отобразить папки "Проводник" и "Параметры" в меню "Пуск"
@@ -2173,9 +1596,6 @@ $UncheckedAppxPackages = @(
 	# Фотографии и Видеоредактор
 	"Microsoft.Windows.Photos"
 	"Microsoft.Photos.MediaEngineDLC"
-	# Calculator
-	# Калькулятор
-	"Microsoft.WindowsCalculator"
 	# Xbox Identity Provider
 	# Поставщик удостоверений Xbox
 	"Microsoft.XboxIdentityProvider"
@@ -2439,72 +1859,6 @@ New-ItemProperty -Path HKCU:\System\GameConfigStore -Name GameDVR_Enabled -Prope
 # Turn off Xbox Game Bar tips
 # Отключить советы Xbox Game Bar
 New-ItemProperty -Path HKCU:\Software\Microsoft\GameBar -Name ShowStartupPanel -PropertyType DWord -Value 0 -Force
-
-# Set "High performance" in graphics performance preference for apps
-# Установить параметры производительности графики для отдельных приложений на "Высокая производительность"
-if (Get-CimInstance -ClassName Win32_VideoController | Where-Object -FilterScript {$_.AdapterDACType -ne "Internal" -and $null -ne $_.AdapterDACType})
-{
-	if ($RU)
-	{
-		$Title = "Настройка производительности графики"
-		$Message = "Чтобы добавить приложение, для которого будет установлена настройка производительности графики на `"Высокая производительность`", введите необходимую букву"
-		$Options = "&Создать", "&Пропустить"
-	}
-	else
-	{
-		$Title = "Graphics performance preference"
-		$Message = "To add an app for which the graphics performance preference will be set to `"High performance`" enter the required letter"
-		$Options = "&Add", "&Skip"
-	}
-	$DefaultChoice = 1
-
-	do
-	{
-		$Result = $Host.UI.PromptForChoice($Title, $Message, $Options, $DefaultChoice)
-		switch ($Result)
-		{
-			"0"
-			{
-				Add-Type -AssemblyName System.Windows.Forms
-				$OpenFileDialog = New-Object -TypeName System.Windows.Forms.OpenFileDialog
-				if ($RU)
-				{
-					$OpenFileDialog.Filter = "*.exe|*.exe|Все файлы (*.*)|*.*"
-				}
-				else
-				{
-					$OpenFileDialog.Filter = "*.exe|*.exe|All Files (*.*)|*.*"
-				}
-				$OpenFileDialog.InitialDirectory = "${env:ProgramFiles(x86)}"
-				$OpenFileDialog.Multiselect = $false
-				# Focus on open file dialog
-				# Перевести фокус на диалог открытия файла
-				$tmp = New-Object -TypeName System.Windows.Forms.Form -Property @{TopMost = $true}
-				$OpenFileDialog.ShowDialog($tmp)
-				if ($OpenFileDialog.FileName)
-				{
-					if (-not (Test-Path -Path HKCU:\Software\Microsoft\DirectX\UserGpuPreferences))
-					{
-						New-Item -Path HKCU:\Software\Microsoft\DirectX\UserGpuPreferences -Force
-					}
-					New-ItemProperty -Path HKCU:\Software\Microsoft\DirectX\UserGpuPreferences -Name $OpenFileDialog.FileName -PropertyType String -Value "GpuPreference=2;" -Force
-				}
-			}
-			"1"
-			{
-				if ($RU)
-				{
-					Write-Verbose -Message "Пропущено" -Verbose
-				}
-				else
-				{
-					Write-Verbose -Message "Skipped" -Verbose
-				}
-			}
-		}
-	}
-	until ($Result -eq 1)
-}
 #endregion Gaming
 
 #region Scheduled tasks
@@ -3013,8 +2367,8 @@ setx /M MP_FORCE_USE_SANDBOX 1
 New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows Security Health\State" -Name AccountProtection_MicrosoftAccount_Disconnected -PropertyType DWord -Value 1 -Force
 
 # Dismiss Windows Defender offer in the Windows Security about to turn on the SmartScreen filter for Microsoft Edge
-# Отклонить предложение Windows Defender в "Безопасность Windows" включить фильтр SmartScreen для Microsoft Edge
-New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows Security Health\State" -Name AppAndBrowser_EdgeSmartScreenOff -PropertyType DWord -Value 0 -Force
+# Don't do this, makes for a persistent warning symbol on task bar Shield symbol
+# New-ItemProperty -Path "HKCU:\Software\Microsoft\Windows Security Health\State" -Name AppAndBrowser_EdgeSmartScreenOff -PropertyType DWord -Value 0 -Force
 
 # Turn on events auditing generated when a process is created or starts
 # Включить аудит событий, возникающих при создании или запуске процесса
@@ -3127,22 +2481,6 @@ New-ItemProperty -Path Registry::HKEY_CLASSES_ROOT\CABFolder\Shell\RunAs -Name H
 # Add the "Run as different user" item to the .exe files types context menu
 # Добавить "Запуск от имени другого пользователя" в контекстное меню .exe файлов
 Remove-ItemProperty -Path Registry::HKEY_CLASSES_ROOT\exefile\shell\runasuser -Name Extended -Force -ErrorAction Ignore
-
-# Hide the "Cast to Device" item from the context menu
-# Скрыть пункт "Передать на устройство" из контекстного меню
-if (-not (Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked"))
-{
-	New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked" -Force
-}
-New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked" -Name "{7AD84985-87B4-4a16-BE58-8B72A5B390F7}" -PropertyType String -Value "Play to menu" -Force
-
-# Hide the "Share" item from the context menu
-# Скрыть пункт "Отправить" (поделиться) из контекстного меню
-if (-not (Test-Path -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked"))
-{
-	New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked" -Force
-}
-New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked" -Name "{E2BF9676-5F8F-435C-97EB-11607A5BEDF7}" -PropertyType String -Value "" -Force
 
 # Hide the "Edit with Paint 3D" item from the context menu
 # Скрыть пункт "Изменить с помощью Paint 3D" из контекстного меню
@@ -3299,3 +2637,4 @@ if ($Error)
 		}
 	} | Sort-Object -Property Line | Format-Table -AutoSize -Wrap | Out-String).Trim()
 }
+

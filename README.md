@@ -1,40 +1,11 @@
 <div align="center">
   <h1>Windows 10 Setup Script</h1>
 
-**"Windows 10 Setup Script" is a set of tweaks for OS fine-tuning and automating the routine tasks** 🏆
-
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/b88d2880e17a4844bef470f2e7929c6b)](https://www.codacy.com/manual/farag2/Windows-10-Setup-Script)
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/farag2/Windows-10-Setup-Script)
-![GitHub All Releases](https://img.shields.io/github/downloads/farag2/Windows-10-Setup-Script/total)
-[![ko-fi](https://www.ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/Q5Q51QUJC)
+**"Windows 10 Setup Script" is a set of tweaks for OS fine-tuning and automating the routine tasks**
 </div>
 
-|Author|Link|
-|-------------|-------------|
-|**Chris Titus Tech**|[![YT](https://i.imgur.com/mADOh3c.png)](https://youtu.be/8E6OT_QcHaU?t=370)|
-|**Britec09**|[![YT](https://i.imgur.com/mADOh3c.png)](https://youtu.be/WK_A9c-m2PQ)|
-|**gHacks.net**|[![ghacks](https://i.imgur.com/K4f8VBo.png)](https://www.ghacks.net/2020/08/19/run-windows-10-setup-script-after-installation-to-customize-the-os/)|
+Sometimes the script appears to hang without any output (observed after the `LegacyDefaultPrinterMode` task, for example). Pressing spacebar usually makes the scrip progress.
 
-## FAQ
-
-* Due to the fact that the script includes about 150 functions, you must read the entire script and comment out those sections that you do not want to be executed otherwise likely you will enable features that you do not want to be enabled.
-* Running the script is best done on a fresh install because running it on tweaked system may result in errors occurring.
-* Some third-party antiviruses flag this script or its' part as malicious one. This is a false positive due to [$EncodedScript](https://github.com/farag2/Windows-10-Setup-Script/blob/298307bafee70b55ea00d9cba7a9e14ea6e4f5a4/Win%2010%202004.ps1#L2689) variable. You can read more about in "Create a Windows cleaning up task in the Task Scheduler" section. You might need to disable tamper protection from your antivirus settings, re-enable it after running the script, and reboot.
-
-## Screenshots
-
-![Image](https://i.imgur.com/OjWeooZ.png)
-![Image](https://i.imgur.com/BDOoE4B.png)
-![Image](https://i.imgur.com/stEsBkN.png)
-
-## Videos
-
-<details>
-  <summary>YouTube videos</summary>
-
-[![Image](http://img.youtube.com/vi/8MzuDLNH9QU/0.jpg)](http://www.youtube.com/watch?v=8MzuDLNH9QU)
-[![Image](http://img.youtube.com/vi/cjyi9nX8sFA/0.jpg)](http://www.youtube.com/watch?v=cjyi9nX8sFA)
-</details>
 
 ## Core features
 
