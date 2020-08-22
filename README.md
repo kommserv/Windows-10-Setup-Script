@@ -4,8 +4,6 @@
 **"Windows 10 Setup Script" is a set of tweaks for OS fine-tuning and automating the routine tasks**
 </div>
 
-Sometimes the script appears to hang without any output (observed after the `LegacyDefaultPrinterMode` task, for example). Pressing spacebar usually makes the scrip progress.
-
 
 ## Core features
 
